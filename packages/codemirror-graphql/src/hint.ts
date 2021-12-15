@@ -12,9 +12,16 @@
 import CodeMirror, { Hints, Hint } from 'codemirror';
 import 'codemirror/addon/hint/show-hint';
 
-import { FragmentDefinitionNode, GraphQLSchema, GraphQLType } from 'graphql';
+import {
+  FragmentDefinitionNode,
+  GraphQLSchema,
+  GraphQLType,
+  GraphQLNonNull,
+  GraphQLList,
+} from 'graphql';
 import type { Maybe } from 'graphql-language-service';
 import { getAutocompleteSuggestions, Position } from 'graphql-language-service';
+import escapeHTML from 'escape-html';
 
 export interface GraphQLHintOptions {
   schema?: GraphQLSchema;
@@ -96,10 +103,17 @@ CodeMirror.registerHelper(
     const results = {
       list: rawResults.map(item => ({
         text: item.label,
-        type: item.type,
+        // type: item.type,
         description: item.documentation,
         isDeprecated: item.isDeprecated,
         deprecationReason: item.deprecationReason,
+        render: (el: HTMLElement) => {
+          el.innerHTML = `<span class="info-label">${
+            item.label
+          }</span> <span class="infoType">${
+            item.type && renderType(item.type)
+          }</span>`;
+        },
       })),
       from: { line: cur.line, ch: tokenStart },
       to: { line: cur.line, ch: token.end },
@@ -114,5 +128,16 @@ CodeMirror.registerHelper(
     return results;
   },
 );
+
+function renderType(type: GraphQLType): string {
+  if (type instanceof GraphQLNonNull) {
+    return `${renderType(type.ofType)}!`;
+  }
+  if (type instanceof GraphQLList) {
+    return `[${renderType(type.ofType)}]`;
+  }
+  return `<a class="typeName">${escapeHTML(type.name)}</a>`;
+}
+
 // exporting here so we don't need to import the codemirror show-hint addon module (and its implementation)
 export type { IHint, IHints };
