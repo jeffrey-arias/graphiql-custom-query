@@ -38,6 +38,7 @@ export interface GraphQLInfoOptions {
   onClick?: Maybe<(ref: Maybe<SchemaReference>, e: MouseEvent) => void>;
   renderDescription?: (str: string) => string;
   render?: () => string;
+  extensions?: Object;
 }
 
 /**
@@ -66,7 +67,6 @@ CodeMirror.registerHelper(
     const kind = state.kind;
     const step = state.step;
     const typeInfo = getTypeInfo(options.schema, token.state);
-
     // Given a Schema and a Token, produce the contents of an info tooltip.
     // To do this, create a div element that we will render "into" and then pass
     // it to various rendering functions.
@@ -77,6 +77,7 @@ CodeMirror.registerHelper(
       const into = document.createElement('div');
       renderField(into, typeInfo, options);
       renderDescription(into, options, typeInfo.fieldDef as any);
+      renderComplexityLevel(into, token.string, options.extensions);
       return into;
     } else if (kind === 'Directive' && step === 1 && typeInfo.directiveDef) {
       const into = document.createElement('div');
@@ -229,6 +230,46 @@ function renderDescription(
   renderDeprecation(into, options, def);
 }
 
+interface ComplexityTreeObject {
+  [key: string]: any;
+}
+
+function renderComplexityLevel(
+  into: HTMLElement,
+  fieldName: String,
+  extensions?: ComplexityTreeObject,
+) {
+  const complexityTree = extensions?.extensions?.complexity?.complexityTree;
+  console.log('rendering complexity level: ' + JSON.stringify(complexityTree));
+  if (complexityTree) {
+    const complexityLevelDiv = document.createElement('div');
+    complexityLevelDiv.className = 'info-description';
+    const complexity = getComplexityLevel(fieldName, complexityTree);
+    complexityLevelDiv.appendChild(
+      document.createTextNode(`Complexity Level: ${complexity}`),
+    );
+    into.appendChild(complexityLevelDiv);
+  }
+}
+
+function getComplexityLevel(
+  fieldName: String,
+  complexityTree: ComplexityTreeObject,
+): string {
+  console.log('getting complexity level :' + JSON.stringify(complexityTree));
+  if (complexityTree?.field_name === fieldName) {
+    return complexityTree?.estimated_cost;
+  } else if (complexityTree?.children?.length > 0) {
+    for (const newTree of complexityTree.children) {
+      console.log('new tree: ' + JSON.stringify(newTree));
+      const complexityLevelTmp = getComplexityLevel(fieldName, newTree);
+      if (Number.parseInt(complexityLevelTmp, 10) > 0) {
+        return complexityLevelTmp;
+      }
+    }
+  }
+  return '0';
+}
 function renderDeprecation(
   into: HTMLElement,
   options: GraphQLInfoOptions,

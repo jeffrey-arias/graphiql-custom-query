@@ -71,6 +71,8 @@ import HistoryStore from '../utility/HistoryStore';
 
 import { validateSchema } from 'graphql';
 
+const complexityLevelDataJSON = require('./complexity-level-test-data').default;
+
 const DEFAULT_DOC_EXPLORER_WIDTH = 350;
 
 const majorVersion = parseInt(React.version.slice(0, 2), 10);
@@ -310,6 +312,7 @@ export type GraphiQLState = {
   operations?: OperationDefinitionNode[];
   documentAST?: DocumentNode;
   maxHistoryLength: number;
+  extensions: Object;
 };
 
 const stringify = (obj: unknown): string => JSON.stringify(obj, null, 2);
@@ -514,6 +517,7 @@ export class GraphiQL extends React.Component<GraphiQLProps, GraphiQLState> {
       isWaitingForResponse: false,
       subscription: null,
       maxHistoryLength,
+      extensions: {},
       ...queryFacts,
     };
   }
@@ -787,6 +791,7 @@ export class GraphiQL extends React.Component<GraphiQLProps, GraphiQLState> {
                 editorTheme={this.props.editorTheme}
                 readOnly={this.props.readOnly}
                 externalFragments={this.props.externalFragments}
+                extensions={this.state.extensions}
               />
               <section
                 className="variable-editor secondary-editor"
@@ -1402,9 +1407,14 @@ export class GraphiQL extends React.Component<GraphiQLProps, GraphiQLState> {
                 response: GraphiQL.formatResult(fullResponse),
               });
             } else {
+              const testResult = {
+                ...result,
+                ...complexityLevelDataJSON,
+              } as Object;
               this.setState({
                 isWaitingForResponse: false,
-                response: GraphiQL.formatResult(result),
+                response: GraphiQL.formatResult(testResult),
+                extensions: complexityLevelDataJSON,
               });
             }
           }

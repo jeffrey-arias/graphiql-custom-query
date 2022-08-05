@@ -18,6 +18,7 @@ import { normalizeWhitespace } from '../utility/normalizeWhitespace';
 import onHasCompletion from '../utility/onHasCompletion';
 import commonKeys from '../utility/commonKeys';
 import { SizerComponent } from '../utility/CodeMirrorSizer';
+import '../css/complexity-level.css';
 
 const md = new MD();
 const AUTO_COMPLETE_AFTER_KEY = /^[a-zA-Z0-9_@(]$/;
@@ -36,7 +37,12 @@ type QueryEditorProps = {
   onRunQuery?: () => void;
   editorTheme?: string;
   externalFragments?: string | FragmentDefinitionNode[];
+  extensions?: ComplexityTreeObject;
 };
+
+interface ComplexityTreeObject {
+  [key: string]: any;
+}
 
 /**
  * QueryEditor
@@ -58,6 +64,8 @@ export class QueryEditor extends React.Component<QueryEditorProps, {}>
   ignoreChangeEvent: boolean = false;
 
   _node: HTMLElement | null = null;
+
+  extensions?: Object;
 
   constructor(props: QueryEditorProps) {
     super(props);
@@ -89,6 +97,7 @@ export class QueryEditor extends React.Component<QueryEditorProps, {}>
     require('codemirror-graphql/info');
     require('codemirror-graphql/jump');
     require('codemirror-graphql/mode');
+    require('codemirror-graphql/complexitylevel');
 
     const editor: CM.Editor = (this.editor = CodeMirror(this._node, {
       value: this.props.value || '',
@@ -122,6 +131,7 @@ export class QueryEditor extends React.Component<QueryEditorProps, {}>
         renderDescription: (text: string) => md.render(text),
         onClick: (reference: GraphQLType) =>
           this.props.onClickReference && this.props.onClickReference(reference),
+        extensions: this.props?.extensions,
       },
       jump: {
         schema: this.props.schema,
@@ -129,6 +139,9 @@ export class QueryEditor extends React.Component<QueryEditorProps, {}>
           reference: GraphQLType, // TODO: it looks like this arg is not actually a GraphQL type but something from GraphiQL codemirror
         ) =>
           this.props.onClickReference && this.props.onClickReference(reference),
+      },
+      complexitylevel: {
+        extensions: this.props?.extensions,
       },
       gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
       extraKeys: {
@@ -210,18 +223,27 @@ export class QueryEditor extends React.Component<QueryEditorProps, {}>
 
   componentDidUpdate(prevProps: QueryEditorProps) {
     const CodeMirror = require('codemirror');
-
     // Ensure the changes caused by this update are not interpretted as
     // user-input changes which could otherwise result in an infinite
     // event loop.
     this.ignoreChangeEvent = true;
-    if (this.props.schema !== prevProps.schema && this.editor) {
+    if (
+      (this.props.schema !== prevProps.schema ||
+        this.props.extensions !== prevProps.extensions) &&
+      this.editor
+    ) {
       this.editor.options.lint.schema = this.props.schema;
       this.editor.options.hintOptions.schema = this.props.schema;
       this.editor.options.info.schema = this.props.schema;
       this.editor.options.jump.schema = this.props.schema;
+      this.editor.options.info.extensions = this.props.extensions;
+      this.editor.options.complexitylevel.extensions = this.props.extensions;
       CodeMirror.signal(this.editor, 'change', this.editor);
     }
+    if (this.editor && this.props.extensions !== prevProps.extensions) {
+      this.renderComplexityLevelStyles(this.editor);
+    }
+
     if (
       this.props.value !== prevProps.value &&
       this.props.value !== this.cachedValue &&
@@ -300,4 +322,59 @@ export class QueryEditor extends React.Component<QueryEditorProps, {}>
       change.update(change.from, change.to, text);
     }
   }
+
+  private getComplexityLevel = (
+    fieldName: String,
+    complexityTree: ComplexityTreeObject,
+  ): string => {
+    console.log('getting complexity level :' + JSON.stringify(complexityTree));
+    if (complexityTree?.field_name === fieldName) {
+      return complexityTree?.estimated_cost;
+    } else if (complexityTree?.children?.length > 0) {
+      for (const newTree of complexityTree.children) {
+        console.log('new tree: ' + JSON.stringify(newTree));
+        const complexityLevelTmp = this.getComplexityLevel(fieldName, newTree);
+        if (Number.parseInt(complexityLevelTmp, 10) > 0) {
+          return complexityLevelTmp;
+        }
+      }
+    }
+    return '0';
+  };
+
+  private removeGraphQLSpecialChars = (str: String): String => {
+    if (str) {
+      return str.replaceAll(/([{},#])/g, '');
+    }
+    return '';
+  };
+
+  private renderComplexityLevelStyles = (cm: CM.Editor) => {
+    let lineNum = 0;
+    const complexityTree = this.props?.extensions?.extensions?.complexity
+      ?.complexityTree;
+    if (complexityTree) {
+      cm.eachLine((line: CM.LineHandle) => {
+        const text = this.removeGraphQLSpecialChars(line.text).trim();
+        if (text?.length > 0) {
+          const complexity =
+            complexityTree &&
+            Number.parseInt(this.getComplexityLevel(text, complexityTree), 10);
+          let className = 'bg-green-med';
+          if (complexity > 10 && complexity <= 100) {
+            className = 'bg-yellow-med';
+          } else if (complexity > 100) {
+            className = 'bg-red-med';
+          }
+          cm.addLineClass(line, 'background', className);
+          cm.replaceRange(
+            `${line.text} # Complexity Level: ${complexity}`,
+            { line: lineNum, ch: 0 },
+            { line: lineNum, ch: 100 },
+          );
+        }
+        lineNum++;
+      });
+    }
+  };
 }
