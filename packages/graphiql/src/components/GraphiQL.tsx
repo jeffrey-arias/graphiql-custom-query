@@ -56,6 +56,7 @@ import { getLeft, getTop } from '../utility/elementPosition';
 import mergeAST from '../utility/mergeAst';
 import { introspectionQueryName } from '../utility/introspectionQueries';
 import { dset } from 'dset/merge';
+import '../css/complexity-level.css';
 
 import type {
   Fetcher,
@@ -302,6 +303,7 @@ export type GraphiQLState = {
   variableEditorActive: boolean;
   headerEditorActive: boolean;
   headerEditorEnabled: boolean;
+  complexityLevelActive: boolean;
   shouldPersistHeaders: boolean;
   historyPaneOpen: boolean;
   schemaErrors?: readonly GraphQLError[];
@@ -508,6 +510,7 @@ export class GraphiQL extends React.Component<GraphiQLProps, GraphiQLState> {
           ? this._storage.get('headerEditorActive') !== 'true'
           : true,
       headerEditorActive: this._storage.get('headerEditorActive') === 'true',
+      complexityLevelActive: false,
       headerEditorEnabled,
       shouldPersistHeaders,
       historyPaneOpen: this._storage.get('historyPaneOpen') === 'true' || false,
@@ -798,7 +801,9 @@ export class GraphiQL extends React.Component<GraphiQLProps, GraphiQLState> {
                 style={secondaryEditorStyle}
                 aria-label={
                   this.state.variableEditorActive
-                    ? 'Query Variables'
+                    ? this.state.complexityLevelActive
+                      ? 'Complexity Levels'
+                      : 'Query Variables'
                     : 'Request Headers'
                 }>
                 <div
@@ -831,6 +836,32 @@ export class GraphiQL extends React.Component<GraphiQLProps, GraphiQLState> {
                       {'Request Headers'}
                     </div>
                   )}
+                  {
+                    <div
+                      style={{
+                        cursor: 'pointer',
+                        color: this.state.complexityLevelActive
+                          ? '#000'
+                          : 'gray',
+                        display: 'inline-block',
+                        marginLeft: '20px',
+                      }}
+                      onClick={this.handleComplexityLevelTab}
+                      onMouseDown={this.handleTabClickPropogation}>
+                      <div
+                        style={{
+                          cursor: 'pointer',
+                          color: this.state.complexityLevelActive
+                            ? '#000'
+                            : 'gray',
+                          display: 'inline-block',
+                        }}
+                        onClick={this.handleComplexityLevelTab}
+                        onMouseDown={this.handleTabClickPropogation}>
+                        {'Complexity Levels'}
+                      </div>
+                    </div>
+                  }
                 </div>
                 <VariableEditor
                   ref={n => {
@@ -862,6 +893,19 @@ export class GraphiQL extends React.Component<GraphiQLProps, GraphiQLState> {
                     readOnly={this.props.readOnly}
                     active={this.state.headerEditorActive}
                   />
+                )}
+                {this.state.complexityLevelActive && (
+                  <div style={{ padding: '10px' }}>
+                    <text>{'COMPLEXITY LEVELS CONTENT'}</text>
+                    <span className="bg-green-med sample-panel">{'1'}</span>
+                    <span className="bg-green-heavy sample-panel">{'2'}</span>
+                    <span className="bg-yellow-med sample-panel">{'3'}</span>
+                    <span className="bg-yellow-heavy sample-panel">{'4'}</span>
+                    <span className="bg-orange-med sample-panel">{'5'}</span>
+                    <span className="bg-orange-heavy sample-panel">{'6'}</span>
+                    <span className="bg-red-med sample-panel">{'7'}</span>
+                    <span className="bg-red-heavy sample-panel">{'8'}</span>
+                  </div>
                 )}
               </section>
             </div>
@@ -1854,6 +1898,7 @@ export class GraphiQL extends React.Component<GraphiQLProps, GraphiQLState> {
     this.setState({
       headerEditorActive: true,
       variableEditorActive: false,
+      complexityLevelActive: false,
       secondaryEditorOpen: true,
     });
   };
@@ -1864,7 +1909,19 @@ export class GraphiQL extends React.Component<GraphiQLProps, GraphiQLState> {
     this.setState({
       headerEditorActive: false,
       variableEditorActive: true,
+      complexityLevelActive: false,
       secondaryEditorOpen: true,
+    });
+  };
+
+  private handleComplexityLevelTab: MouseEventHandler<
+    HTMLDivElement
+  > = _clickEvent => {
+    this.setState({
+      headerEditorActive: false,
+      variableEditorActive: false,
+      secondaryEditorOpen: true,
+      complexityLevelActive: true,
     });
   };
 
